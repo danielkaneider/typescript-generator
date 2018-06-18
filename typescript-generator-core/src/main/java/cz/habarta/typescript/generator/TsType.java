@@ -87,7 +87,7 @@ public abstract class TsType implements Emittable {
 
         @Override
         public String format(Settings settings) {
-            return symbol.getFullName();
+            return settings.outputFileType.isDirectory() ? symbol.getSimpleName() : symbol.getFullName();
         }
 
     }
@@ -107,10 +107,10 @@ public abstract class TsType implements Emittable {
 
         @Override
         public String format(Settings settings) {
-            return symbol.getFullName() + "<" + Emitter.formatList(settings, typeArguments) + ">";
+            return super.format(settings) + "<" + Emitter.formatList(settings, typeArguments) + ">";
         }
     }
-    
+
     public static class GenericVariableType extends TsType.BasicType {
 
         public GenericVariableType(String name) {

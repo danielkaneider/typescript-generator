@@ -1,29 +1,41 @@
 
 package cz.habarta.typescript.generator.emitter;
 
-import cz.habarta.typescript.generator.*;
+import java.io.IOException;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import cz.habarta.typescript.generator.Output;
+import cz.habarta.typescript.generator.Settings;
+import cz.habarta.typescript.generator.TsParameter;
+import cz.habarta.typescript.generator.TsType;
+import cz.habarta.typescript.generator.TypeScriptGenerator;
+import cz.habarta.typescript.generator.TypeScriptOutputKind;
 import cz.habarta.typescript.generator.compiler.EnumMemberModel;
 import cz.habarta.typescript.generator.util.Utils;
-import java.io.*;
-import java.text.*;
-import java.util.*;
 
 
 public class Emitter implements EmitterExtension.Writer {
 
-    private final Settings settings;
-    private Writer writer;
-    private boolean forceExportKeyword;
-    private int indent;
+    protected final Settings settings;
+    protected Writer writer;
+    protected boolean forceExportKeyword;
+    protected int indent;
+
+    protected Output output;
 
     public Emitter(Settings settings) {
         this.settings = settings;
     }
 
     public void emit(TsModel model, Writer output, String outputName, boolean closeOutput, boolean forceExportKeyword, int initialIndentationLevel) {
-        this.writer = output;
-        this.forceExportKeyword = forceExportKeyword;
-        this.indent = initialIndentationLevel;
+        initSettings(output, forceExportKeyword, initialIndentationLevel);
+
         if (outputName != null) {
             TypeScriptGenerator.getLogger().info("Writing declarations to: " + outputName);
         }
@@ -37,7 +49,13 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void emitFileComment() {
+    protected void initSettings(Writer output, boolean forceExportKeyword, int initialIndentationLevel) {
+        this.writer = output;
+        this.forceExportKeyword = forceExportKeyword;
+        this.indent = initialIndentationLevel;
+    }
+
+    protected void emitFileComment() {
         if (!settings.noTslintDisable) {
             writeIndentedLine("/* tslint:disable */");
         }
@@ -47,7 +65,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void emitReferences() {
+    protected void emitReferences() {
         if (settings.referencedFiles != null && !settings.referencedFiles.isEmpty()) {
             writeNewLine();
             for (String reference : settings.referencedFiles) {
@@ -56,7 +74,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void emitImports() {
+    protected void emitImports() {
         if (settings.importDeclarations != null && !settings.importDeclarations.isEmpty()) {
             writeNewLine();
             for (String importDeclaration : settings.importDeclarations) {
@@ -83,7 +101,7 @@ public class Emitter implements EmitterExtension.Writer {
         if (settings.namespace != null) {
             writeNewLine();
             String prefix = "";
-            if (settings.outputFileType == TypeScriptFileType.declarationFile && settings.outputKind == TypeScriptOutputKind.global) {
+            if (settings.outputFileType.isDeclaration() && settings.outputKind == TypeScriptOutputKind.global) {
                 prefix = "declare ";
             }
             if (settings.outputKind == TypeScriptOutputKind.module) {
@@ -91,42 +109,25 @@ public class Emitter implements EmitterExtension.Writer {
             }
             writeIndentedLine(prefix +  "namespace " + settings.namespace + " {");
             indent++;
-            final boolean exportElements = settings.outputFileType == TypeScriptFileType.implementationFile;
+            final boolean exportElements = settings.outputFileType.isImplementation();
             emitElements(model, exportElements, false);
             indent--;
             writeNewLine();
             writeIndentedLine("}");
         } else {
             final boolean exportElements = settings.outputKind == TypeScriptOutputKind.module;
-            final boolean declareElements = settings.outputFileType == TypeScriptFileType.declarationFile && settings.outputKind == TypeScriptOutputKind.global;
+            final boolean declareElements = settings.outputFileType.isDeclaration() && settings.outputKind == TypeScriptOutputKind.global;
             emitElements(model, exportElements, declareElements);
         }
     }
 
-    private void emitElements(TsModel model, boolean exportKeyword, boolean declareKeyword) {
+    protected void emitElements(TsModel model, boolean exportKeyword, boolean declareKeyword) {
         exportKeyword = exportKeyword || forceExportKeyword;
         emitBeans(model, exportKeyword, declareKeyword);
         emitTypeAliases(model, exportKeyword, declareKeyword);
         emitLiteralEnums(model, exportKeyword, declareKeyword);
         emitHelpers(model);
-        for (EmitterExtension emitterExtension : settings.extensions) {
-            final List<String> extensionLines = new ArrayList<>();
-            final EmitterExtension.Writer extensionWriter = new EmitterExtension.Writer() {
-                @Override
-                public void writeIndentedLine(String line) {
-                    extensionLines.add(line);
-                }
-            };
-            emitterExtension.emitElements(extensionWriter, settings, exportKeyword, model);
-            if (!extensionLines.isEmpty()) {
-                writeNewLine();
-                writeNewLine();
-                writeIndentedLine(String.format("// Added by '%s' extension", emitterExtension.getClass().getSimpleName()));
-                for (String line : extensionLines) {
-                    this.writeIndentedLine(line);
-                }
-            }
-        }
+        emitExtensions(model, exportKeyword);
     }
 
     private void emitBeans(TsModel model, boolean exportKeyword, boolean declareKeyword) {
@@ -147,7 +148,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void emitFullyQualifiedDeclaration(TsDeclarationModel declaration, boolean exportKeyword, boolean declareKeyword) {
+    protected void emitFullyQualifiedDeclaration(TsDeclarationModel declaration, boolean exportKeyword, boolean declareKeyword) {
         if (declaration.getName().getNamespace() != null) {
             writeNewLine();
             final String prefix = declareKeyword ? "declare " : "";
@@ -162,7 +163,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void emitDeclaration(TsDeclarationModel declaration, boolean exportKeyword, boolean declareKeyword) {
+    protected void emitDeclaration(TsDeclarationModel declaration, boolean exportKeyword, boolean declareKeyword) {
         if (declaration instanceof TsBeanModel) {
             emitBean((TsBeanModel) declaration, exportKeyword);
         } else if (declaration instanceof TsAliasModel) {
@@ -179,8 +180,8 @@ public class Emitter implements EmitterExtension.Writer {
         emitComments(bean.getComments());
         final String declarationType = bean.isClass() ? "class" : "interface";
         final String typeParameters = bean.getTypeParameters().isEmpty() ? "" : "<" + Utils.join(bean.getTypeParameters(), ", ")+ ">";
-        final List<TsType> extendsList = bean.getExtendsList();
-        final List<TsType> implementsList = bean.getImplementsList();
+        final List<String> extendsList = bean.getExtendsList().stream().map(type -> type.format(settings)).collect(Collectors.toList());
+        final List<String> implementsList = bean.getImplementsList().stream().map(type -> type.format(settings)).collect(Collectors.toList());
         final String extendsClause = extendsList.isEmpty() ? "" : " extends " + Utils.join(extendsList, ", ");
         final String implementsClause = implementsList.isEmpty() ? "" : " implements " + Utils.join(implementsList, ", ");
         writeIndentedLine(exportKeyword, declarationType + " " + bean.getName().getSimpleName() + typeParameters + extendsClause + implementsClause + " {");
@@ -387,7 +388,28 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void emitUmdNamespace() {
+    private void emitExtensions(TsModel model, boolean exportKeyword) {
+        for (EmitterExtension emitterExtension : settings.extensions) {
+            final List<String> extensionLines = new ArrayList<>();
+            final EmitterExtension.Writer extensionWriter = new EmitterExtension.Writer() {
+                @Override
+                public void writeIndentedLine(String line) {
+                    extensionLines.add(line);
+                }
+            };
+            emitterExtension.emitElements(extensionWriter, settings, exportKeyword, model);
+            if (!extensionLines.isEmpty()) {
+                writeNewLine();
+                writeNewLine();
+                writeIndentedLine(String.format("// Added by '%s' extension", emitterExtension.getClass().getSimpleName()));
+                for (String line : extensionLines) {
+                    this.writeIndentedLine(line);
+                }
+            }
+        }
+    }
+
+    protected void emitUmdNamespace() {
         if (settings.umdNamespace != null) {
             writeNewLine();
             writeIndentedLine("export as namespace " + settings.umdNamespace + ";");
@@ -437,7 +459,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void writeNewLine() {
+    protected void writeNewLine() {
         try {
             writer.write(settings.newline);
             writer.flush();
@@ -446,7 +468,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
-    private void close() {
+    protected void close() {
         try {
             writer.close();
         } catch (IOException e) {
@@ -454,4 +476,7 @@ public class Emitter implements EmitterExtension.Writer {
         }
     }
 
+    public void setOutput(Output output) {
+        this.output = output;
+    }
 }

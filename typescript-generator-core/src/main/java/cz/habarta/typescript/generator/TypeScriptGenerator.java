@@ -60,7 +60,9 @@ public class TypeScriptGenerator {
     private void generateTypeScript(Input input, Output output, boolean forceExportKeyword, int initialIndentationLevel) {
         final Model model = getModelParser().parseModel(input.getSourceTypes());
         final TsModel tsModel = getModelCompiler().javaToTypeScript(model);
-        getEmitter().emit(tsModel, output.getWriter(), output.getName(), output.shouldCloseWriter(), forceExportKeyword, initialIndentationLevel);
+        Emitter currentEmitter = getEmitter();
+        currentEmitter.setOutput(output);
+        currentEmitter.emit(tsModel, output.getWriter(), output.getName(), output.shouldCloseWriter(), forceExportKeyword, initialIndentationLevel);
         generateNpmPackageJson(output);
     }
 
@@ -75,7 +77,7 @@ public class TypeScriptGenerator {
             npmPackageJson.name = settings.npmName;
             npmPackageJson.version = settings.npmVersion;
             npmPackageJson.types = outputFile.getName();
-            if (settings.outputFileType == TypeScriptFileType.implementationFile) {
+            if (settings.outputFileType.isImplementation()) {
                 npmPackageJson.types = Utils.replaceExtension(outputFile, ".d.ts").getName();
                 npmPackageJson.main = Utils.replaceExtension(outputFile, ".js").getName();
                 npmPackageJson.dependencies = !settings.npmPackageDependencies.isEmpty() ? settings.npmPackageDependencies : null;
@@ -129,7 +131,11 @@ public class TypeScriptGenerator {
 
     public Emitter getEmitter() {
         if (emitter == null) {
-            emitter = new Emitter(settings);
+            if (settings.outputFileType.isDirectory()) {
+                emitter = new DirectoryEmitter(settings);
+            } else {
+                emitter = new Emitter(settings);
+            }
         }
         return emitter;
     }

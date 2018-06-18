@@ -176,7 +176,7 @@ public class Settings {
         if (outputKind == null) {
             throw new RuntimeException("Required 'outputKind' parameter is not configured. " + seeLink());
         }
-        if (outputKind == TypeScriptOutputKind.ambientModule && outputFileType == TypeScriptFileType.implementationFile) {
+        if (outputKind == TypeScriptOutputKind.ambientModule && outputFileType.isImplementation()) {
             throw new RuntimeException("Ambient modules are not supported in implementation files. " + seeLink());
         }
         if (outputKind == TypeScriptOutputKind.ambientModule && module == null) {
@@ -188,7 +188,7 @@ public class Settings {
         if (outputKind != TypeScriptOutputKind.module && umdNamespace != null) {
             throw new RuntimeException("'umdNamespace' parameter is only applicable to modules. " + seeLink());
         }
-        if (outputFileType == TypeScriptFileType.implementationFile && umdNamespace != null) {
+        if (outputFileType.isImplementation() && umdNamespace != null) {
             throw new RuntimeException("'umdNamespace' parameter is not applicable to implementation files. " + seeLink());
         }
         if (umdNamespace != null && !Emitter.isValidIdentifierName(umdNamespace)) {
@@ -204,7 +204,7 @@ public class Settings {
                 TypeScriptGenerator.getLogger().warning(String.format("Extension '%s' is deprecated: %s", extensionName, deprecation.value()));
             }
             final EmitterExtensionFeatures features = extension.getFeatures();
-            if (features.generatesRuntimeCode && outputFileType != TypeScriptFileType.implementationFile) {
+            if (features.generatesRuntimeCode && outputFileType.isDeclaration()) {
                 throw new RuntimeException(String.format("Extension '%s' generates runtime code but 'outputFileType' parameter is not set to 'implementationFile'.", extensionName));
             }
             if (features.generatesModuleCode && outputKind != TypeScriptOutputKind.module) {
@@ -232,16 +232,16 @@ public class Settings {
                 defaultStringEnumsOverriddenByExtension = true;
             }
         }
-        if (nonConstEnums && outputFileType != TypeScriptFileType.implementationFile) {
+        if (nonConstEnums && !outputFileType.isImplementation()) {
             throw new RuntimeException("Non-const enums can only be used in implementation files but 'outputFileType' parameter is not set to 'implementationFile'.");
         }
-        if (mapClasses == ClassMapping.asClasses && outputFileType != TypeScriptFileType.implementationFile) {
+        if (mapClasses == ClassMapping.asClasses && !outputFileType.isImplementation()) {
             throw new RuntimeException("'mapClasses' parameter is set to 'asClasses' which generates runtime code but 'outputFileType' parameter is not set to 'implementationFile'.");
         }
         if (mapClassesAsClassesPatterns != null && mapClasses != ClassMapping.asClasses) {
             throw new RuntimeException("'mapClassesAsClassesPatterns' parameter can only be used when 'mapClasses' parameter is set to 'asClasses'.");
         }
-        if (generateJaxrsApplicationClient && outputFileType != TypeScriptFileType.implementationFile) {
+        if (generateJaxrsApplicationClient && !outputFileType.isImplementation()) {
             throw new RuntimeException("'generateJaxrsApplicationClient' can only be used when generating implementation file ('outputFileType' parameter is 'implementationFile').");
         }
         final boolean generateJaxrs = generateJaxrsApplicationClient || generateJaxrsApplicationInterface;
@@ -296,14 +296,14 @@ public class Settings {
     }
 
     public String getExtension() {
-        return outputFileType == TypeScriptFileType.implementationFile ? ".ts" : ".d.ts";
+        return outputFileType.isImplementation() ? ".ts" : ".d.ts";
     }
 
     public void validateFileName(File outputFile) {
-        if (outputFileType == TypeScriptFileType.declarationFile && !outputFile.getName().endsWith(".d.ts")) {
+        if (outputFileType.isDeclaration() && !outputFile.getName().endsWith(".d.ts")) {
             throw new RuntimeException("Declaration file must have 'd.ts' extension: " + outputFile);
         }
-        if (outputFileType == TypeScriptFileType.implementationFile && (!outputFile.getName().endsWith(".ts") || outputFile.getName().endsWith(".d.ts"))) {
+        if (outputFileType.isImplementation() && (!outputFile.getName().endsWith(".ts") || outputFile.getName().endsWith(".d.ts"))) {
             throw new RuntimeException("Implementation file must have 'ts' extension: " + outputFile);
         }
     }

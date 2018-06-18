@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ser.*;
 import com.fasterxml.jackson.module.jaxb.JaxbAnnotationIntrospector;
 import cz.habarta.typescript.generator.*;
@@ -132,7 +133,7 @@ public class Jackson2Parser extends ModelParser {
             discriminantProperty = null;
             discriminantLiteral = null;
         }
-        
+
         final List<Class<?>> taggedUnionClasses;
         final JsonSubTypes jsonSubTypes = sourceClass.type.getAnnotation(JsonSubTypes.class);
         if (jsonSubTypes != null) {
